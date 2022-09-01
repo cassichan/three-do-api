@@ -36,10 +36,13 @@ export async function createTask(req, res) {
   //.send({success: true, message:"Task added"});
 }
 
-export function updateTask(req, res) {
+export async function updateTask(req, res) {
   const taskUpdate = req.body;
   const { taskId } = req.params;
-  res.status(202).send("Task updated");
+  const db = dbConnect();
+  await db.collection("tasks").doc(taskId).update(taskUpdate)
+  .catch((err) => res.status(500).send(err));
+  res.status(202).send(getTasks(req, res));
 }
 
 export function deleteTask(req, res) {
