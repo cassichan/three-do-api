@@ -1,4 +1,6 @@
+import jwt from "jsonwebtoken";
 import dbConnect from "./dbConnect/fsConnect.js";
+import { secretKey } from "./dbConnect/credentials.js";
 
 // app.get("/tasks", getTasks)
 // app.post("/tasks", createTask)
@@ -6,9 +8,15 @@ import dbConnect from "./dbConnect/fsConnect.js";
 // app.delete("/tasks/:taskId", deleteTask)
 
 export async function getTasks(req, res) {
+  //getting token from header sent in front end useeffect
+  const token = req.headers.authorization;
+  //check that token is valid
+  const user = jwt.verify(token, secretKey);
   const db = dbConnect();
   const collection = await db
     .collection("tasks")
+    //get only the tasks that belong to this user/filter query by userid
+    .where("userId", "==", user.id)
     .get()
     .catch((err) => res.status(500).send(err));
   const tasks = collection.docs.map((doc) => {
@@ -21,11 +29,15 @@ export async function getTasks(req, res) {
 }
 
 export async function createTask(req, res) {
-  const newTask = req.body;
-  if (!newTask || !newTask.task) {
+  const token = req.headers.authorization;
+  let newTask = req.body;
+  const user = jwt.verify(token, secretKey);
+  if (!newTask || !newTask.task || !user) {
     //make task required
     res.status(400).send({ success: false, message: "Invalid request" });
+    return;
   }
+  newTask.userId = user.id
   const db = dbConnect();
   await db
     .collection("tasks")
@@ -33,16 +45,19 @@ export async function createTask(req, res) {
     .catch((err) => res.status(500).send(err));
   res.status(201);
   getTasks(req, res); //let this function handle the response. send back the full list of tasks after this one is added
-  //.send({success: true, message:"Task added"});
 }
 
 export async function updateTask(req, res) {
   const taskUpdate = req.body;
   const { taskId } = req.params;
   const db = dbConnect();
-  await db.collection("tasks").doc(taskId).update(taskUpdate)
-  .catch((err) => res.status(500).send(err));
-  res.status(202).send(getTasks(req, res));
+  await db
+    .collection("tasks")
+    .doc(taskId)
+    .update(taskUpdate)
+    .catch((err) => res.status(500).send(err));
+  res.status(202);
+  getTasks(req, res);
 }
 
 export function deleteTask(req, res) {
